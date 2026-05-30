@@ -7,6 +7,12 @@ Turn any document into a structured, AI-generated narrative — staged and style
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![License](https://img.shields.io/badge/license-private-lightgrey)
 
+## Preview / Demo
+
+[![Watch demo on YouTube](https://img.youtube.com/vi/kRQ1yoxPeSU/0.jpg)](https://www.youtube.com/watch?v=kRQ1yoxPeSU)
+
+![ProjectStory demo](demo.gif)
+
 ## Overview
 
 ProjectStory is a browser-only single-page app that accepts a document upload and runs it through a three-agent AI pipeline to produce a lifecycle story — phase-by-phase content written for a chosen audience, genre, and length. The user configures all three dimensions by interacting with animated water-bubble controls before any generation starts. There is no backend; all AI calls run client-side using either Google Gemini or Anthropic Claude, and all state persists in `localStorage` across sessions.
@@ -146,4 +152,4 @@ No `.env` file is needed. API keys are entered at runtime in the browser UI and 
 
 ## About
 
-ProjectStory explores what a document-to-narrative pipeline looks like when the configuration UI is itself part of the experience. The bubble interaction is designed so that the choices a user makes (genre, audience, length) feel as deliberate as the document they upload — each selection is a physical act that shapes the output rather than a form field. The project is part of [ak-asu/SmallProjects](https://github.com/ak-asu/SmallProjects/tree/main/projectstory).
+ProjectStory explores what a document-to-narrative pipeline looks like when the configuration UI is itself part of the experience. The bubble interaction is designed so that the choices a user makes (genre, audience, length) feel as deliberate as the document they upload — each selection is a physical act that shapes the output rather than a form field. The project is part of [ak-asu/projectstory](https://github.com/ak-asu/projectstory).
