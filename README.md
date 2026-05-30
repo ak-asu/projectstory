@@ -1,138 +1,149 @@
-# ProjectStory - AI Coding Agent Instructions
+# ProjectStory
 
-## Project Overview
-ProjectStory is a single-page React + TypeScript + Vite application with a **Frosted Glass UI (Glassmorphism)** theme. It creates an interactive, water-animated interface for processing documents through a multi-agent AI pipeline. The app uses Google's Generative AI (Gemini) to analyze uploaded files and generate dynamic, industry-specific stage-based content.
+Turn any document into a structured, AI-generated narrative — staged and styled to your audience, rendered inside an animated glassmorphism UI.
+
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
+![License](https://img.shields.io/badge/license-private-lightgrey)
+
+## Overview
+
+ProjectStory is a browser-only single-page app that accepts a document upload and runs it through a three-agent AI pipeline to produce a lifecycle story — phase-by-phase content written for a chosen audience, genre, and length. The user configures all three dimensions by interacting with animated water-bubble controls before any generation starts. There is no backend; all AI calls run client-side using either Google Gemini or Anthropic Claude, and all state persists in `localStorage` across sessions.
+
+## Highlights
+
+- **Dual AI provider support** — choose Google Gemini (`gemini-2.5-flash` + `text-embedding-004`) or Anthropic Claude (`claude-3-5-sonnet`) at runtime with no code change
+- **Three-agent sequential pipeline** — file analysis and RAG embeddings, stage plan generation, and stage content generation run in strict order, each result feeding the next
+- **Client-side RAG** — document chunks are embedded with Gemini's `text-embedding-004` model and stored in browser state; the context store is sliced into the content prompt without a server
+- **Glassmorphism bubble interface** — concentric-ring bubble layout with CSS keyframe animations (`wiggle`, `splitOutDynamic`, `splash`, `waterTransition`) driven entirely by polar-to-Cartesian coordinate math at runtime
+- **Full session persistence** — API keys, provider choice, generated stages, vector store, and current view all survive page reloads via `localStorage`
+- **Adaptive content sizing** — font class is chosen dynamically based on the ratio of generated word count to the user-selected length target (Short / Medium / Long)
+
+## Features
+
+**AI Pipeline**
+- Agent 1 classifies document type, domain, and themes; creates vector embeddings for RAG context
+- Agent 2 produces 5–6 domain-specific lifecycle stages with name, description, color, and a weight that controls visual arrow length
+- Agent 3 generates all stage content in a single API call, audience-tuned and genre-styled
+- Fallback stage plan activates automatically if JSON parsing fails
+
+**UI / Interaction**
+- File upload triggers a bubble-split animation; each of the three category bubbles (Genre, Audience, Length) expands its options onto an outer ring
+- Option selection collapses the ring and recalculates remaining bubble positions in real time
+- Cycle view: rotatable arrow wheel on the left, animated content panel on the right; scroll wheel and click both rotate
+- Click anywhere on the background to spawn a water-ripple effect at the cursor position
+- Reset button clears `localStorage` and returns to the initial upload state
+
+**Configuration**
+- Provider selector (Gemini / Claude) with separate API key inputs
+- `ANALYZE_FULL_FILE` flag controls whether the document is chunked (2 000-character segments) or sent whole — default is a single-call approach for speed
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Framework | React 19 | Component model and state management |
+| Language | TypeScript 5.8 | Type safety across agents and UI state |
+| Build | Vite 7 | Dev server and production bundler |
+| Styling | Tailwind CSS 4 (PostCSS) | Utility classes, glassmorphism, gradient palette |
+| AI — primary | Google Gemini (`@google/generative-ai` 0.24) | Text generation (`gemini-2.5-flash`) and embeddings (`text-embedding-004`) |
+| AI — alternate | Anthropic Claude (`@anthropic-ai/sdk` 0.65) | Text generation (`claude-3-5-sonnet-20241022`) |
+| Icons | Lucide React 0.544 | Upload, FileText, Eye, Ruler, RotateCcw icons |
+| Persistence | Browser `localStorage` | Session state, API keys, generated content |
 
 ## Architecture
 
-### Core Component: `water_glass_ui.tsx`
-The main component implements a sophisticated **"water bubble" UI metaphor** with two distinct views:
-- **Initial View**: File upload → 3 Category bubbles (Genre, Audience, Length) → Option bubbles → Selection
-- **Cycle View**: Rotatable wheel with crystal arrows displaying AI-generated stages with detailed content
+```mermaid
+flowchart TD
+    A[File Upload] --> B[Agent 1\nAnalysis + Embeddings]
+    B -->|analysis string\nvector store| C[Bubble Selections\nGenre · Audience · Length]
+    C --> D[Agent 2\nStage Plan]
+    D -->|5-6 stage objects| E[Agent 3\nContent Generation]
+    E -->|stageContents map| F[Cycle View]
+    F -->|scroll / click| G[Stage Panel\nName + Content]
+    F -->|center button| H[Reset\nclear localStorage]
 
-### UI Design Pattern: Concentric Circle Layout
-- **Center**: Initial upload bubble (wiggling/animated surface)
-- **Inner Circle (180px radius)**: 3 category bubbles (Genre, Audience, Length) - equidistant placement
-- **Outer Circle (320px radius)**: Option bubbles populate dynamically when category is clicked
-- All bubbles use glassmorphism: `backdrop-blur-xl bg-white/10 border border-white/20`
-
-### Multi-Agent AI Pipeline (Sequential Execution)
-The application follows a **3-agent architecture** using `@google/generative-ai` for document processing:
-
-1. **Agent 1: File Analysis & Vector Embeddings** (`analyzeFileAndCreateEmbeddings`)
-   - **Purpose**: Understand uploaded file and create searchable knowledge base
-   - **Optimization**: Single API call with full file content (when `analyzeFullFile` is false)
-   - Conditionally chunks documents based on `analyzeFullFile` flag (2000-character segments when true)
-   - Uses `text-embedding-004` model to create vector embeddings for semantic search
-   - Analyzes document type, domain, industry classification, and key themes
-   - **Storage**: RAG (Retrieval Augmented Generation) locally in browser state (no backend)
-   - Enables context-aware content generation in later stages
-
-2. **Agent 2: Dynamic Stage Plan Creation** (`createStagePlan`)
-   - **Purpose**: Generate industry/domain-specific lifecycle stages
-   - Creates 5-6 contextual stages based on document analysis (e.g., SDLC for software projects)
-   - Considers user preferences (genre/style, audience, length) from bubble selections
-   - Returns JSON array with stage metadata: `{name, description, color, weight}`
-   - **Weight field**: Determines arrow length in cycle view (0.8-1.5 scale)
-   - Falls back to generic stages if JSON parsing fails (error resilience)
-
-3. **Agent 3: Stage Content Generation** (`createStageContent`)
-   - **Purpose**: Create detailed, audience-appropriate content for each stage
-   - **Optimization**: Single API call generates content for ALL stages simultaneously
-   - Retrieves relevant context from vector store (first 3 chunks for performance)
-   - Generates content tailored to user selections (genre, audience, length)
-   - Returns JSON format with all stage contents in one response
-   - Formats output with headers and structured sections for readability
-   - Content is industry-specific and directly relates to uploaded document
-
-### Data Flow
-```
-File Upload → API Key Check → Agent 1 (Analysis + Embeddings) → 
-Agent 2 (Stage Planning) → Agent 3 (Content Generation) → 
-UI Transition (Initial → Cycle View)
+    subgraph Client State localStorage
+        B
+        D
+        E
+    end
 ```
 
-## Critical Dependencies
-**Installed Dependencies:**
-- `@google/generative-ai` - Google Gemini API client
-- `lucide-react` - Icon components (Upload, FileText, Eye, Share2, Loader2, etc.)
-- `tailwindcss@next` (v4.0.0) - Tailwind CSS 4 with new Rust-based engine
-- `@tailwindcss/postcss` (v4.0.0) - Tailwind CSS 4 PostCSS plugin
-- `postcss` - CSS processing for Tailwind
-- `autoprefixer` - Vendor prefix automation
+## How It Works
 
-**Tailwind CSS 4 Setup:**
-- Uses `@tailwindcss/postcss` plugin (compatible with Vite 7)
-- Configuration in `tailwind.config.js` and `postcss.config.js`
-- Import syntax (`@import "tailwindcss"`) in `src/index.css`
+1. **API key setup** — on first load a modal prompts for a provider choice (Gemini or Claude) and the corresponding API key. The key is stored in `localStorage` for subsequent sessions.
 
-## Developer Workflows
+2. **File upload and Agent 1** — uploading a `.txt`, `.md`, or image file triggers `analyzeFileAndCreateEmbeddings`. The document is sent to the chosen model for domain/theme classification, then each chunk is embedded with `text-embedding-004` (Gemini) or a random-vector fallback (Claude) and stored in component state as a vector store.
 
-### API Key Management
-- Users must provide Google AI API key at runtime (modal prompt)
-- API key stored in component state (not persisted)
-- Get key from: https://aistudio.google.com/app/apikey
+3. **Bubble selection** — three category bubbles (Genre, Audience, Length) split out from the center. Clicking one expands its options onto a 280 px outer ring. Each selection pops that category's options and recalculates angular positions for any remaining bubbles using even 360° distribution.
 
-## UI Animation System
+4. **Agents 2 and 3** — once all three categories are selected, `createStagePlan` builds a genre- and audience-aware stage plan from the document analysis. Then `createStageContent` uses the first three vector-store chunks as RAG context and generates all stage content in a single prompt.
 
-### Animation Conventions
-The UI uses **inline CSS keyframe animations** defined in a `<style>` tag within the component. All animations follow a **water-oriented theme**:
-- `wiggle`: Organic bubble movement (border-radius morphing for living water effect)
-- `splitOut{0-2}`: Water droplet split animation for 3 category bubbles
-- `splitOutOption{0-5}`: Same split animation for option bubbles (reused pattern)
-- `splash`: Bubble pop/burst effect when selections are made
-- `waterTransition`: Cool water-oriented transition between initial and cycle views
-- `ripple`: Pulsing concentric rings on upload button (water ripple effect)
+5. **Cycle view** — the app transitions to a split layout: a rotating arrow wheel (one arrow per stage, length proportional to `weight`) on the left, and a wiggling glassmorphism panel on the right that displays the active stage's generated content. Scroll or click to rotate; font size adjusts based on how much text was generated relative to the word-limit target.
 
-### Position Calculations
-- **Category bubbles**: 180px radius, 120° spacing (3 bubbles equidistant on inner circle)
-- **Option bubbles**: 320px radius, dynamic angle distribution (outer circle, grouped by category)
-- **Stage arrows**: 120px radius, 360°/stageCount spacing (left 1/3rd of cycle view)
-- All use polar-to-cartesian coordinate conversion: `{x: cos(angle) * radius, y: sin(angle) * radius}`
-- **Active arrow**: Horizontally most right position (click or scroll to rotate)
+6. **Reset** — the center `RotateCcw` button clears `localStorage` and returns to the upload screen.
 
-### State Management Pattern
-Complex animation states managed through multiple useState hooks:
-- `view`: 'initial' | 'cycle'
-- `fileUploaded`, `splitting`, `transitioning`: Animation flags
-- `bubbles`, `optionBubbles`: Bubble instances with `popped` and `isAnimating` flags
-- Animations triggered via `setTimeout` chains for sequential effects
+## Setup
 
-## Project-Specific Patterns
+**Prerequisites:** Node.js 18+ and npm.
 
-### Component Structure
-- Single monolithic component (644 lines) - **no component decomposition**
-- All state, logic, and UI in `WaterBubbleUI` component
-- No external state management (Redux, Zustand, etc.)
+```bash
+# Install dependencies
+npm install
 
-### Styling Approach
-- **Tailwind CSS 4** for utility classes (gradients, backdrop blur, glass morphism)
-  - Using PostCSS integration with Vite 7
-  - Frosted glass effects: `backdrop-blur-xl bg-white/10 border border-white/20`
-  - Gradient backgrounds: `bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900`
-- Inline styles for dynamic animations and positioning (calculated at runtime)
-- CSS-in-JS via `<style>` tag for keyframe animations
-- Color palette: Gradient combinations (`from-{color}-400 to-{color}-400`)
-- Opacity modifiers for glassmorphism: `/10`, `/20`, `/30`, `/60`, `/80`
+# Start development server
+npm run dev
 
-## Integration Points
+# Type-check and build for production
+npm run build
 
-### Google Generative AI Models
-- **Analysis/Content**: `gemini-1.5-flash` (fast, cost-effective for text generation)
-- **Embeddings**: `text-embedding-004` (vector generation for RAG)
-- **Package**: `@google/generative-ai` (GoogleGenerativeAI client)
-- Error handling: Alert-based user feedback (no toast system)
+# Preview the production build
+npm run preview
 
-### File Upload System
-- Accepts: `.txt`, `.md`, and `image/*` (images)
-- Reads via `File.text()` API for text files (client-side processing)
-- No server-side upload - client-side processing only
-- **Optimization**: `analyzeFullFile` flag controls chunking behavior (default: false = single API call)
+# Lint
+npm run lint
+```
 
-## Known Patterns to Preserve
+No `.env` file is needed. API keys are entered at runtime in the browser UI and are stored in `localStorage`.
 
-1. **Sequential Agent Execution**: Never parallelize agents - each depends on previous results
-2. **Fallback Stage Plan**: Always include default stages if JSON parsing fails
-3. **Vector Store Slicing**: Only use first 3 chunks for context (performance constraint)
-4. **Animation Delays**: Specific timing patterns (100ms splits, 600ms pops, 1500ms transitions)
-5. **Transform-based Positioning**: All bubble positions use `translate(calc(-50% + Xpx), calc(-50% + Ypx))`
+## Usage
+
+1. Open the app in a browser (default: `http://localhost:5173`).
+2. Choose a provider (Google Gemini or Anthropic Claude) and paste an API key.
+   - Gemini keys: [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+   - Claude keys: [console.anthropic.com](https://console.anthropic.com/)
+3. Click the pulsing upload bubble and select a `.txt` or `.md` file.
+4. Click each of the three category bubbles in turn and select an option from the outer ring:
+   - **Genre** — Struggle, Horror, Mystical, Fantasy, Adventure, Romance
+   - **Audience** — Professional, Kid, Teenager, General, Academic
+   - **Length** — Short (50 words), Medium (80 words), Long (120 words)
+5. Wait for the three-agent pipeline to complete. The app transitions automatically to the cycle view.
+6. Scroll or click arrows to navigate stages. The right panel shows stage name and AI-generated content.
+7. Click the center circle to reset and process a new document.
+
+## Key Decisions
+
+| Decision | Rationale | Tradeoff |
+|---|---|---|
+| Sequential agent execution | Each agent depends on the previous result; parallelizing would require speculative prompts | Longer total latency vs. reliable context chaining |
+| Single API call for all stage content (Agent 3) | Reduces round-trip count and keeps content tonally consistent across stages | One large prompt; if the model truncates, some stage content may be missing |
+| Client-side RAG in browser state | No backend infrastructure required; keeps the project self-contained | Vector store is cleared on hard reload; no persistent semantic search |
+| `localStorage` for full session state | Users can refresh without losing generated results or re-entering API keys | API keys are stored unencrypted in the browser |
+| Dual-provider architecture | Lets users choose based on key availability and model preference | Claude path uses random-vector mock embeddings — semantic retrieval is degraded |
+| CSS keyframe animations with inline `<style>` | Avoids a runtime animation library; polar math drives positions exactly | Animation logic is coupled to the component; harder to extract or reuse |
+
+## Innovation / Notable Work
+
+**Concentric bubble layout with live recalculation** — bubble positions are not fixed. Every time a category or option bubble is dismissed, the remaining bubbles redistribute evenly across 360° using polar-to-Cartesian math computed inline. The animation target coordinates (`--target-x`, `--target-y`) are written as CSS custom properties on each element at render time, so the `splitOutDynamic` keyframe reads them without JavaScript-controlled transitions.
+
+**Provider-agnostic agent pipeline** — the same three agent functions accept either a `GoogleGenerativeAI` instance or an `Anthropic` instance and branch internally. Switching providers changes only which client is instantiated; the prompt structure, state writes, and error handling are identical.
+
+**Adaptive font sizing** — rather than a fixed text size for all content lengths, the app calculates a word-count-to-word-limit ratio at render time and applies a Tailwind size class (`text-lg` → `text-xs`) so shorter and longer responses both fill the content panel readably.
+
+**Robust JSON extraction from LLM responses** — Agent 3 tries a code-fence extraction first, then walks brace depth to extract the outermost JSON object, and finally falls back to per-stage regex matching before showing placeholder text. This handles the full range of model response formatting without crashing.
+
+## About
+
+ProjectStory explores what a document-to-narrative pipeline looks like when the configuration UI is itself part of the experience. The bubble interaction is designed so that the choices a user makes (genre, audience, length) feel as deliberate as the document they upload — each selection is a physical act that shapes the output rather than a form field. The project is part of [ak-asu/SmallProjects](https://github.com/ak-asu/SmallProjects/tree/main/projectstory).
